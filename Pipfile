@@ -6,6 +6,10 @@ name = "pypi"
 [packages]
 dnslib = "*"
 requests = "*"
+pandas = "*"
+scikit-learn = "*"
+nltk = "*"
+joblib = "*"
 
 [dev-packages]
 

@@ -1,14 +1,22 @@
 from dnslib import DNSRecord, RCODE, QTYPE, RR, A
 from dnslib.server import DNSServer, BaseResolver
+from ModelTrainer import extract_features
 import socket
 import logging
 import json
+import joblib
+import pandas as pd
 
 # Set the logging level to INFO
 logging.basicConfig(filename='dns_proxy_logs.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class CustomResolver(BaseResolver):
+
+    def __init__(self):
+        # Load the trained model
+        self.model = joblib.load('random_forest_model.pkl')
+
     def resolve(self, request, handler):
         logger.info(f"Received request: {request}. Processing...")
         # Extract the requested domain and query type
@@ -35,21 +43,19 @@ class CustomResolver(BaseResolver):
 
     def query_ml_model(self, domain):
         print(f"Querying ML model for {domain}")
-        logger.info(f"Querying ML model for {domain}")
-        #response = requests.post(f"http://localhost:5000/predict?qname={domain}")
-        response = {'is_malicious': False, 'confidence': 0.9999999999999999}
-        logger.info(f"ML model response: {response}")
-        results = json.dumps(response)
-        logger.info(f"ML model response json: {results}")
-        # Example response: {'is_malicious': False, 'confidence': 0.9999999999999999}
-        if domain.__contains__("youtube"):
-            logger.info(f"Domain {domain} is malicious, it contains 'youtube' in the domain name")
-            response.update({'is_malicious': True})
-        else:
-            logger.info(f"Domain {domain} is safe, it does not contain 'youtube' in the domain name")
 
-        logger.info(f"ML model response: {results}")
-        return response['is_malicious']
+        # Extract features from the domain
+        features = [extract_features(domain)]
+        features_df = pd.DataFrame(features, columns=['length', 'dot_count', 'has_http', 'has_www', 'has_at', 'ends_with_html', 'contains_youtube'])
+        prediction = self.model.predict(features_df)
+
+        # Example response: {'is_malicious': False, 'confidence': 0.9999999999999999}
+        if prediction[0] == 1:
+            logger.info(f"Domain {domain} is predicted to be malicious")
+        else:
+            logger.info(f"Domain {domain} is predicted to be safe")
+
+        return prediction[0]
     
     def forward_to_google_dns(self, request):
         # Forward the request to Google's public DNS server (8.8.8.8)
